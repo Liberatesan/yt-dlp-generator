@@ -1,0 +1,188 @@
+<!DOCTYPE html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;">
+    <title>yt-dlp 指令生成器</title>
+    <style>
+        body {
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        select, input, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background: #0066cc;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #004a99;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0f0f0;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>yt-dlp 指令生成器</h2>
+        <div class="form-group">
+            <label>下載類型：</label>
+            <select id="downloadType" onchange="updateFormatOptions()">
+                <option value="video+audio">視訊 + 音訊</option>
+                <option value="video">視訊（僅）</option>
+                <option value="audio">音訊（僅）</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>格式選擇：</label>
+            <select id="format">
+                <!-- 預設為視訊 + 音訊選項 -->
+            </select>
+        </div>
+        <div class="form-group">
+            <label>本地檔案儲存路徑：</label>
+            <input type="text" id="filePath" placeholder="輸入本地檔案儲存路徑，例如 C:\Videos">
+        </div>
+        <div class="form-group">
+            <label>YouTube 網址：</label>
+            <input type="text" id="url" placeholder="輸入 YouTube 網址或播放清單 URL">
+        </div>
+        <div class="form-group">
+            <label>下載選項：</label>
+            <select id="playlistOption">
+                <option value="single">單個影片</option>
+                <option value="playlist">整個播放清單</option>
+                <option value="playlist-items">指定播放清單項目</option>
+            </select>
+        </div>
+        <div class="form-group" id="playlistItemsGroup" style="display: none;">
+            <label>指定項目（例如 1,3,5 或 1-10）：</label>
+            <input type="text" id="playlistItems" placeholder="輸入播放清單的項目編號">
+        </div>
+        <button onclick="generateCommand()">生成指令</button>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const formats = {
+            "video+audio": [
+                { value: "299+140", text: "299+140 (1080p 60fps 視訊 + 音訊, 高品質)" },
+                { value: "401+140", text: "401+140 (2160p 視訊 + 音訊, 4K 高品質)" },
+                { value: "270+140", text: "270+140 (1080p 視訊 + 音訊, 標準品質)" }
+            ],
+            "video": [
+                { value: "299", text: "299 (1080p 60fps 視訊)" },
+                { value: "401", text: "401 (2160p 視訊, 4K 高品質)" },
+                { value: "270", text: "270 (1080p 視訊)" },
+                { value: "232", text: "232 (720p 視訊)" }
+            ],
+            "audio": [
+                { value: "140", text: "140 (音訊, m4a, 129k)" },
+                { value: "251", text: "251 (音訊, webm, 123k)" },
+                { value: "250", text: "250 (音訊, webm, 62k)" }
+            ]
+        };
+
+        // 初始化格式選項
+        function updateFormatOptions() {
+            const downloadType = document.getElementById('downloadType').value;
+            const formatSelect = document.getElementById('format');
+            formatSelect.innerHTML = ""; // 清空現有選項
+
+            // 根據選擇的下載類型更新格式選項
+            formats[downloadType].forEach(format => {
+                const option = document.createElement('option');
+                option.value = format.value;
+                option.text = format.text;
+                formatSelect.appendChild(option);
+            });
+        }
+
+        // 顯示或隱藏播放清單項目輸入框
+        document.getElementById('playlistOption').addEventListener('change', function () {
+            const playlistItemsGroup = document.getElementById('playlistItemsGroup');
+            if (this.value === 'playlist-items') {
+                playlistItemsGroup.style.display = 'block';
+            } else {
+                playlistItemsGroup.style.display = 'none';
+            }
+        });
+
+        // 初始化頁面時預設為 "視訊 + 音訊"
+        updateFormatOptions();
+
+        // 生成指令
+        function generateCommand() {
+            const downloadType = document.getElementById('downloadType').value;
+            const format = document.getElementById('format').value;
+            let filePath = document.getElementById('filePath').value.trim();
+            const url = document.getElementById('url').value.trim();
+            const playlistOption = document.getElementById('playlistOption').value;
+            const playlistItems = document.getElementById('playlistItems').value.trim();
+
+            if (!url) {
+                alert("請輸入 YouTube 網址！");
+                return;
+            }
+
+            if (!filePath) {
+                alert("請輸入本地檔案儲存路徑！");
+                return;
+            }
+
+            // 自動在路徑後追加 %(title)s.%(ext)s 或 %(playlist_title)s\%(title)s.%(ext)s
+            if (playlistOption === 'playlist' || playlistOption === 'playlist-items') {
+                filePath = `${filePath}\\%(playlist_title)s\\%(title)s.%(ext)s`;
+            } else {
+                filePath = `${filePath}\\%(title)s.%(ext)s`;
+            }
+
+            // 基本指令
+            let command = `yt-dlp.exe --cookies cookies.txt -o "${filePath}" -f ${format}`;
+
+            // 加入播放清單選項
+            if (playlistOption === 'playlist-items') {
+                command += ` --playlist-items ${playlistItems}`;
+            }
+
+            // 加入 URL
+            command += ` ${url}`;
+
+            // 顯示結果
+            document.getElementById('result').innerText = command;
+        }
+    </script>
+
+
+</body></html>
